@@ -35,18 +35,17 @@ class Game:
         self.cols = cols
         self.boarder = boarder
         
-        self.grid = np.zeros((rows, cols), dtype=int)   # snake grid
         self.apple = Apple(rows, cols, apple_num)
 
         self.reset()
     
     def reset(self):
         # Reset the game state
-        self.grid.fill(0)
+        self.grid = np.zeros((self.rows, self.cols), dtype=int)   # snake grid
+        self.grid[(self.rows // 2, self.cols // 2)] = 1
 
         self.length = 1
         self.direction = random.choice([(0, -1), (1, 0), (0, 1), (-1, 0)])
-        self.grid[(self.rows // 2, self.cols // 2)] = 1
 
         self.apple.reset(self.grid)
     
@@ -69,14 +68,13 @@ class Game:
     def update(self):
         # Update the game state after each move
         head = np.unravel_index((self.grid == self.length).argmax(), self.grid.shape)
+        new = (head[0] + self.direction[0], head[1] + self.direction[1])
 
         if self.boarder:
-            new = (head[0] + self.direction[0], head[1] + self.direction[1])
             if new[0] < 0 or new[0] >= self.rows or new[1] < 0 or new[1] >= self.cols:
                 return -1      # Penalty for hitting the wall
         else:
-            new = ((head[0] + self.direction[0]) % self.rows,
-                   (head[1] + self.direction[1]) % self.cols)
+            new = (new[0] % self.rows, new[1] % self.cols)
         
         if self.grid[new] > 0:
             return -10          # Penalty for hitting itself
@@ -123,6 +121,7 @@ class Draw:
         self.running = True
 
         self.grid_lines = self.create_grid_lines()
+        self.grid_indices = self.create_grid_indices()
 
     def create_grid_lines(self):
         # Precompute grid lines for faster rendering
@@ -134,6 +133,14 @@ class Draw:
             lines.append((c, 0))
             lines.append((c, self.rows))
         return np.array(lines, dtype=np.float32)
+    
+    def create_grid_indices(self):
+        # Generate indices for grid lines
+        indices = []
+        for i in range(0, len(self.grid_lines), 2):
+            indices.append(i)
+            indices.append(i + 1)
+        return indices
 
     def draw_rect(self, x, y, color):
         # Draw a rectangle at the specified position with the given color
@@ -170,7 +177,7 @@ class Draw:
         glColor3f(*self.GRID)
         glEnableClientState(GL_VERTEX_ARRAY)
         glVertexPointer(2, GL_FLOAT, 0, self.grid_lines)
-        glDrawArrays(GL_LINES, 0, len(self.grid_lines))
+        glDrawElements(GL_LINES, len(self.grid_indices), GL_UNSIGNED_INT, self.grid_indices)
         glDisableClientState(GL_VERTEX_ARRAY)
 
         pygame.display.flip()
