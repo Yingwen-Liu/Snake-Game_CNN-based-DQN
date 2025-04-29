@@ -1,5 +1,4 @@
 import numpy as np
-from collections import deque
 import random
 import pygame
 from OpenGL.GL import *
@@ -7,65 +6,69 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 
 class Apple:
-    def __init__(self, grid):
-        self.grid = grid
+    def __init__(self, rows, cols, num):
+        # Initialize the apple grid and number of apples
+        self.num = num
+        self.grid = np.zeros((rows, cols), dtype=int)
 
-        self.update()
-        
-    def update(self):
-        empty = [(r, c) for r in range(self.grid.shape[0]) for c in range(self.grid.shape[1]) if self.grid[r, c] == 0]
-        if len(empty) > 0:
-            self.position = random.choice(list(empty))
-        else:
-            self.position = None
+    def reset(self, snake_grid):
+        # Reset apple positions, avoiding the snake's grid
+        self.grid.fill(0)
+        empty = np.argwhere(snake_grid == 0)
+
+        chosen_pos = empty[np.random.choice(len(empty), self.num, replace=False)]
+        self.grid[tuple(chosen_pos.T)] = 1
+
+    def update(self, snake_grid, head):
+        # Update apple position after being eaten
+        self.grid[head] = 0
+        empty = np.argwhere(snake_grid + self.grid == 0)
+
+        chosen_pos = empty[random.randint(0, len(empty) - 1)]
+        self.grid[tuple(chosen_pos)] = 1
 
 
 class Game:
-    def __init__(self, rows, cols, boarder=True):
+    def __init__(self, rows, cols, apple_num=5, boarder=True):
+        # Initialize the game grid, snake, and apple
         self.rows = rows
         self.cols = cols
         self.boarder = boarder
         
-        self.grid = np.zeros((rows, cols), dtype=np.float32)
-        self.apple = Apple(self.grid)
+        self.grid = np.zeros((rows, cols), dtype=int)   # snake grid
+        self.apple = Apple(rows, cols, apple_num)
 
-        self.init()
-    
-    def init(self):
-        self.snake = deque()
-        self.direction = random.choice([(0, -1), (1, 0), (0, 1), (-1, 0)])
-
-        start_pos = (self.rows // 2, self.cols // 2)
-        self.snake.append(start_pos)
-        self.grid[start_pos] = 1
-
-        self.apple.update()
+        self.reset()
     
     def reset(self):
-        self.grid[:, :] = 0
+        # Reset the game state
+        self.grid.fill(0)
 
-        self.init()
+        self.length = 1
+        self.direction = random.choice([(0, -1), (1, 0), (0, 1), (-1, 0)])
+        self.grid[(self.rows // 2, self.cols // 2)] = 1
+
+        self.apple.reset(self.grid)
     
     def move(self, new_dir):
+        # Change the snake's direction if valid
         if (new_dir[0] * -1, new_dir[1] * -1) != self.direction:
             self.direction = new_dir
     
     def turn(self, new_dir):
+        # Turn the snake based on relative direction
         directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
-
-        current_direction = self.direction
-        direction_index = directions.index(current_direction)
+        direction_index = directions.index(self.direction)
 
         # Map relative action to absolute direction
         if new_dir == 0:  # Turn left
             self.direction = directions[(direction_index - 1) % 4]
-        elif new_dir == 1:  # Go straight
-            self.direction = current_direction
         elif new_dir == 2:  # Turn right
             self.direction = directions[(direction_index + 1) % 4]
     
     def update(self):
-        head = self.snake[-1]
+        # Update the game state after each move
+        head = np.unravel_index((self.grid == self.length).argmax(), self.grid.shape)
 
         if self.boarder:
             new = (head[0] + self.direction[0], head[1] + self.direction[1])
@@ -78,15 +81,12 @@ class Game:
         if self.grid[new] > 0:
             return -10          # Penalty for hitting itself
         
-        self.snake.append(new)
-        self.grid[new] = len(self.snake)
+        self.grid[new] = self.length + 1
 
-        if new == self.apple.position:
-            self.apple.update()
+        if self.apple.grid[new] == 1:
+            self.length += 1
+            self.apple.update(self.grid, new)
             return 50           # Reward for eating an apple
-
-        tail = self.snake.popleft()
-        self.grid[tail] = 0
 
         self.grid[self.grid > 0] -= 1
         
@@ -95,13 +95,14 @@ class Game:
 
 class Draw:
     def __init__(self, rows, cols):
+        # Initialize OpenGL and set up the display
         self.rows = rows
         self.cols = cols
 
         # Colors
-        self.BG = (1.0, 1.0, 1.0)  # OpenGL uses normalized RGB (0.0 to 1.0)
-        self.GRID = (0.0, 0.0, 0.0)
-        self.APPLE = (1.0, 0.0, 0.0)
+        self.BG = (1.0, 1.0, 1.0)       # Background
+        self.GRID = (0.0, 0.0, 0.0)     # Grid
+        self.APPLE = (1.0, 0.0, 0.0)    # Apple
 
         self.grid_size = 50
 
@@ -115,14 +116,27 @@ class Draw:
         glViewport(0, 0, width, height)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluOrtho2D(0, cols, rows, 0)  # Top-left origin
+        gluOrtho2D(0, cols, rows, 0)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         glClearColor(*self.BG, 1.0)
         self.running = True
 
+        self.grid_lines = self.create_grid_lines()
+
+    def create_grid_lines(self):
+        # Precompute grid lines for faster rendering
+        lines = []
+        for r in range(self.rows + 1):
+            lines.append((0, r))
+            lines.append((self.cols, r))
+        for c in range(self.cols + 1):
+            lines.append((c, 0))
+            lines.append((c, self.rows))
+        return np.array(lines, dtype=np.float32)
+
     def draw_rect(self, x, y, color):
-        # Intermediate mode
+        # Draw a rectangle at the specified position with the given color
         glColor3f(*color)
         glBegin(GL_QUADS)
         glVertex2f(x, y)
@@ -131,7 +145,8 @@ class Draw:
         glVertex2f(x, y + 1)
         glEnd()
 
-    def display(self, snake_pos, apple_pos):
+    def display(self, snake_grid, apple_grid):
+        # Render the game state
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -140,30 +155,29 @@ class Draw:
 
         glClear(GL_COLOR_BUFFER_BIT)
 
-        # Draw the grid
-        glColor3f(*self.GRID)
-        glBegin(GL_LINES)
-        for r in range(self.rows + 1):
-            glVertex2f(0, r)
-            glVertex2f(self.cols, r)
-        for c in range(self.cols + 1):
-            glVertex2f(c, 0)
-            glVertex2f(c, self.rows)
-        glEnd()
-
         # Draw the apple
-        if apple_pos is not None:
-            self.draw_rect(apple_pos[1], apple_pos[0], self.APPLE)
+        apple_pos = np.argwhere(apple_grid == 1)
+        for pos in apple_pos:
+            self.draw_rect(pos[1], pos[0], self.APPLE)
 
         # Draw the snake
-        for idx, segment in enumerate(snake_pos):
+        snake_pos = np.argwhere(snake_grid > 0)
+        for idx, segment in enumerate(sorted(snake_pos, key=lambda x: snake_grid[tuple(x)])):
             shade = max(0.0, 1.0 - idx * (1.0 / len(snake_pos)))
             self.draw_rect(segment[1], segment[0], (0.0, shade, 0.0))
+        
+        # Draw the grid
+        glColor3f(*self.GRID)
+        glEnableClientState(GL_VERTEX_ARRAY)
+        glVertexPointer(2, GL_FLOAT, 0, self.grid_lines)
+        glDrawArrays(GL_LINES, 0, len(self.grid_lines))
+        glDisableClientState(GL_VERTEX_ARRAY)
 
         pygame.display.flip()
 
 
 def play():
+    # Main game loop
     rows = 15
     cols = 15
 
@@ -188,13 +202,13 @@ def play():
                 elif event.key == pygame.K_RIGHT:
                     game.move((0, 1))
                 elif event.key == pygame.K_p:
-                    print(game.grid)
+                    print(game.grid - game.apple.grid)
 
         if game.update() < 0:
             game.reset()
             continue
 
-        draw.display(game.snake, game.apple.position)
+        draw.display(game.grid, game.apple.grid)
         clock.tick(tick)
 
 if __name__ == "__main__":

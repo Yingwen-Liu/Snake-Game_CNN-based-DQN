@@ -111,13 +111,8 @@ def encode_state(game, device):
     snake_grid = torch.from_numpy(np.rot90(game.grid, k=rotation_steps).copy()).float()
     snake_grid /= (game.rows * game.cols)
 
-    apple_grid = torch.zeros((game.rows, game.cols), dtype=torch.float32)
-    apple_pos = game.apple.position
-
     # Rotate the apple's position
-    for _ in range(rotation_steps):
-        apple_pos = (apple_pos[1], game.rows - 1 - apple_pos[0])
-    apple_grid[apple_pos[0], apple_pos[1]] = 1.0
+    apple_grid = torch.from_numpy(np.rot90(game.apple.grid, k=rotation_steps).copy()).float()
 
     state = torch.stack([snake_grid, apple_grid], dim=0).to(device)  # Shape: (2, rows, cols)
     return state.unsqueeze(0)
@@ -141,13 +136,13 @@ def train(agent, rows, cols, show=True, episodes=10000):
                 reward = game.update()
 
                 if show and draw.running:
-                    draw.display(game.snake, game.apple.position)
+                    draw.display(game.grid, game.apple.grid)
 
                 next_state = encode_state(game, agent.device)
                 agent.remember(state, action, reward, next_state)
 
                 if reward < 0:  # Game over
-                    total_length += len(game.snake)
+                    total_length += game.length
                     game.reset()
 
                     pbar.set_postfix({"Average Length": f"{total_length / (episode+1):.2f}"})
@@ -174,10 +169,10 @@ def test(agent, rows, cols, show=True, episodes=1000):
                 reward = game.update()
                 
                 if show and draw.running:
-                    draw.display(game.snake, game.apple.position)
+                    draw.display(game.grid, game.apple.grid)
         
                 if reward < 0:  # Game over
-                    total_length += len(game.snake)
+                    total_length += len(game.length)
                     game.reset()
 
                     pbar.set_postfix({"Average Length": f"{total_length / (episode+1):.2f}"})
