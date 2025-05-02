@@ -4,7 +4,6 @@ import torch.optim as optim
 import random
 from tqdm import tqdm
 from collections import deque
-from game import Game, Draw
 import numpy as np  # Add this import for grid rotation
 
 
@@ -104,17 +103,11 @@ class DQNAgent:
 
 
 def encode_state(game, device):
-    direction_map = {(0, -1): 0, (1, 0): 1, (0, 1): 2, (-1, 0): 3}  # Left, Down, Right, Up
-    rotation_steps = direction_map[game.direction]  # Number of 90-degree rotations
-
-    # Rotate the grid so the snake's head always faces upward
-    snake_grid = torch.from_numpy(np.rot90(game.grid, k=rotation_steps).copy()).float()
-    snake_grid /= (game.rows * game.cols)
-
     # Rotate the apple's position
-    apple_grid = torch.from_numpy(np.rot90(game.apple.grid, k=rotation_steps).copy()).float()
+    snakegrid = torch.from_numpy(game.grid).float()
+    apple_grid = torch.from_numpy(game.apple.grid).float()
 
-    state = torch.stack([snake_grid, apple_grid], dim=0).to(device)  # Shape: (2, rows, cols)
+    state = torch.stack([snakegrid, apple_grid], dim=0).to(device)  # Shape: (2, rows, cols)
     return state.unsqueeze(0)
 
 
@@ -136,7 +129,7 @@ def train(agent, rows, cols, show=True, episodes=10000):
                 reward = game.update()
 
                 if show and draw.running:
-                    draw.display(game.grid, game.apple.grid)
+                    draw.display(game)
 
                 next_state = encode_state(game, agent.device)
                 agent.remember(state, action, reward, next_state)
@@ -169,7 +162,7 @@ def test(agent, rows, cols, show=True, episodes=1000):
                 reward = game.update()
                 
                 if show and draw.running:
-                    draw.display(game.grid, game.apple.grid)
+                    draw.display(game)
         
                 if reward < 0:  # Game over
                     total_length += len(game.length)
@@ -182,6 +175,9 @@ def test(agent, rows, cols, show=True, episodes=1000):
                 state = encode_state(game, agent.device)
 
 if __name__ == "__main__":
+    from game_array import Draw
+    from game_deque import Game, Draw
+
     rows = 9
     cols = 9
 

@@ -152,7 +152,7 @@ class Draw:
         glVertex2f(x, y + 1)
         glEnd()
 
-    def display(self, snake_grid, apple_grid):
+    def display(self, game):
         # Render the game state
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -163,13 +163,13 @@ class Draw:
         glClear(GL_COLOR_BUFFER_BIT)
 
         # Draw the apple
-        apple_pos = np.argwhere(apple_grid == 1)
+        apple_pos = np.argwhere(game.apple.grid == 1)
         for pos in apple_pos:
             self.draw_rect(pos[1], pos[0], self.APPLE)
 
         # Draw the snake
-        snake_pos = np.argwhere(snake_grid > 0)
-        for idx, segment in enumerate(sorted(snake_pos, key=lambda x: snake_grid[tuple(x)])):
+        snake_pos = np.argwhere(game.grid > 0)
+        for idx, segment in enumerate(sorted(snake_pos, key=lambda x: game.apple.grid[tuple(x)])):
             shade = max(0.0, 1.0 - idx * (1.0 / len(snake_pos)))
             self.draw_rect(segment[1], segment[0], (0.0, shade, 0.0))
         
@@ -215,7 +215,7 @@ def play():
             game.reset()
             continue
 
-        draw.display(game.grid, game.apple.grid)
+        draw.display(game)
         clock.tick(tick)
 
 if __name__ == "__main__":
