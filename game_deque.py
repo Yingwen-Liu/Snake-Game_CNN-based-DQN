@@ -86,11 +86,12 @@ class Deque:
 
 
 class Game:
-    def __init__(self, rows, cols, apple_num=5, boarder=True):
+    def __init__(self, rows, cols, apple_num=1, boarder=True):
         # Initialize the game grid, snake, and apple
         self.rows = rows
         self.cols = cols
         self.boarder = boarder
+        self.directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
         
         self.apple = Apple(rows, cols, apple_num)
 
@@ -109,25 +110,25 @@ class Game:
         self.grid[start_pos] = 1
 
         self.length = 1
-        self.direction = random.choice([(0, -1), (1, 0), (0, 1), (-1, 0)])
+        self.direction = random.choice(self.directions)
 
         self.apple.reset(self.empty)
 
-    def move(self, new_dir):
+    def move(self, dir):
         # Change the snake's direction if valid
-        if (new_dir[0] * -1, new_dir[1] * -1) != self.direction:
-            self.direction = new_dir
+        dir = self.directions[dir]
+        if (dir[0] * -1, dir[1] * -1) != self.direction:
+            self.direction = dir
 
-    def turn(self, new_dir):
+    def turn(self, dir):
         # Turn the snake based on relative direction
-        directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
-        direction_index = directions.index(self.direction)
+        dir_idx = self.directions.index(self.direction)
 
         # Map relative action to absolute direction
-        if new_dir == 0:  # Turn left
-            self.direction = directions[(direction_index - 1) % 4]
-        elif new_dir == 2:  # Turn right
-            self.direction = directions[(direction_index + 1) % 4]
+        if dir == 0:  # Turn left
+            self.direction = self.directions[(dir_idx - 1) % 4]
+        elif dir == 2:  # Turn right
+            self.direction = self.directions[(dir_idx + 1) % 4]
     
     def update(self):
         # Update the game state after each move
@@ -236,7 +237,7 @@ class Draw:
 
         # Draw the snake
         for idx, segment in enumerate(game.position):
-            shade = max(0.0, 1.0 - idx * (1.0 / game.length))
+            shade = max(0.0, 1.0 - idx / game.length)
             self.draw_rect(segment.value[1], segment.value[0], (0.0, shade, 0.0))
         
         # Draw the grid using glDrawElements
@@ -267,13 +268,13 @@ def play():
                 exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
-                    game.move((-1, 0))
+                    game.move(3)
                 elif event.key == pygame.K_DOWN:
-                    game.move((1, 0))
+                    game.move(1)
                 elif event.key == pygame.K_LEFT:
-                    game.move((0, -1))
+                    game.move(0)
                 elif event.key == pygame.K_RIGHT:
-                    game.move((0, 1))
+                    game.move(2)
                 elif event.key == pygame.K_p:
                     print(game.grid - game.apple.grid)
 

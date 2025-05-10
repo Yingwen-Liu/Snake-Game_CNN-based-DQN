@@ -29,11 +29,12 @@ class Apple:
 
 
 class Game:
-    def __init__(self, rows, cols, apple_num=5, boarder=True):
+    def __init__(self, rows, cols, apple_num=1, boarder=True):
         # Initialize the game grid, snake, and apple
         self.rows = rows
         self.cols = cols
         self.boarder = boarder
+        self.directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]    # left, down, right, up
         
         self.apple = Apple(rows, cols, apple_num)
 
@@ -45,25 +46,25 @@ class Game:
         self.grid[(self.rows // 2, self.cols // 2)] = 1
 
         self.length = 1
-        self.direction = random.choice([(0, -1), (1, 0), (0, 1), (-1, 0)])
+        self.direction = random.choice(self.directions)
 
         self.apple.reset(self.grid)
     
-    def move(self, new_dir):
+    def move(self, dir):
         # Change the snake's direction if valid
-        if (new_dir[0] * -1, new_dir[1] * -1) != self.direction:
-            self.direction = new_dir
+        dir = self.directions[dir]
+        if (dir[0] * -1, dir[1] * -1) != self.direction:
+            self.direction = dir
     
-    def turn(self, new_dir):
+    def turn(self, dir):
         # Turn the snake based on relative direction
-        directions = [(0, -1), (1, 0), (0, 1), (-1, 0)]
-        direction_index = directions.index(self.direction)
+        dir_idx = self.directions.index(self.direction)
 
         # Map relative action to absolute direction
-        if new_dir == 0:  # Turn left
-            self.direction = directions[(direction_index - 1) % 4]
-        elif new_dir == 2:  # Turn right
-            self.direction = directions[(direction_index + 1) % 4]
+        if dir == 0:  # Turn left
+            self.direction = self.directions[(dir_idx - 1) % 4]
+        elif dir == 2:  # Turn right
+            self.direction = self.directions[(dir_idx + 1) % 4]
     
     def update(self):
         # Update the game state after each move
@@ -162,16 +163,14 @@ class Draw:
 
         glClear(GL_COLOR_BUFFER_BIT)
 
-        # Draw the apple
-        apple_pos = np.argwhere(game.apple.grid == 1)
-        for pos in apple_pos:
-            self.draw_rect(pos[1], pos[0], self.APPLE)
-
-        # Draw the snake
-        snake_pos = np.argwhere(game.grid > 0)
-        for idx, segment in enumerate(sorted(snake_pos, key=lambda x: game.apple.grid[tuple(x)])):
-            shade = max(0.0, 1.0 - idx * (1.0 / len(snake_pos)))
-            self.draw_rect(segment[1], segment[0], (0.0, shade, 0.0))
+        # Draw the apple and snake
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if game.grid[r, c] > 0:
+                    shade = max(0.0, 1.0 - (game.grid[r, c] - 1.0) / game.length)
+                    self.draw_rect(c, r, (0.0, shade, 0.0))
+                elif game.apple.grid[r, c] == 1:
+                    self.draw_rect(c, r, self.APPLE)
         
         # Draw the grid
         glColor3f(*self.GRID)
@@ -201,13 +200,13 @@ def play():
                 exit()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP:
-                    game.move((-1, 0))
+                    game.move(3)
                 elif event.key == pygame.K_DOWN:
-                    game.move((1, 0))
+                    game.move(1)
                 elif event.key == pygame.K_LEFT:
-                    game.move((0, -1))
+                    game.move(0)
                 elif event.key == pygame.K_RIGHT:
-                    game.move((0, 1))
+                    game.move(2)
                 elif event.key == pygame.K_p:
                     print(game.grid - game.apple.grid)
 

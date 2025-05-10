@@ -8,24 +8,26 @@ import numpy as np  # Add this import for grid rotation
 
 
 class CNN(nn.Module):
-    def __init__(self, input_channels, output_dim):
+    def __init__(self, input_shape, num_actions):
         super(CNN, self).__init__()
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(input_channels, 32, kernel_size=3, stride=1, padding=1),
+        self.conv = nn.Sequential(
+            nn.Conv2d(input_shape[0], 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Flatten()
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU()
         )
-        self.fc_layers = nn.Sequential(
-            nn.Linear(64 * 9 * 9, 128),
+        self.fc = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(128 * input_shape[1] * input_shape[2], 512),
             nn.ReLU(),
-            nn.Linear(128, output_dim)
+            nn.Linear(512, num_actions)
         )
 
     def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
+        x = self.conv(x)
+        x = self.fc(x)
         return x
 
 
@@ -35,12 +37,13 @@ class DQNAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.memory = deque(maxlen=1000)
+
         self.gamma = 0.99  # Discount factor
         self.epsilon = 1.0  # Exploration rate
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.999
-        self.learning_rate = 0.001
-        self.batch_size = 16
+        self.epsilon_min = 0.1
+        self.epsilon_decay = 0.995
+        self.learning_rate = 1e-4
+        self.batch_size = 32
 
         self.model = CNN(state_size, action_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
@@ -50,11 +53,12 @@ class DQNAgent:
         self.memory.append((state, action, reward, next_state))
 
     def act(self, state):
-        state = state.to(self.device)
         if random.random() <= self.epsilon:
             return random.randrange(self.action_size)
-
-        q_values = self.model(state)
+        
+        state = state.to(self.device)
+        with torch.no_grad():
+            q_values = self.model(state)
         return torch.argmax(q_values).item()
 
     def replay(self):
@@ -175,16 +179,16 @@ def test(agent, rows, cols, show=True, episodes=1000):
                 state = encode_state(game, agent.device)
 
 if __name__ == "__main__":
-    from game_array import Draw
+    #from game_array import Game, Draw
     from game_deque import Game, Draw
 
     rows = 9
     cols = 9
 
     state_size = 2      # 2 channels: snake grid and apple grid
-    action_size = 3     # 3 actions: turn left, go straight, turn right
+    action_size = 4     # 4 actions: left, down, right, up
 
-    agent = DQNAgent(state_size, action_size)
+    agent = DQNAgent([state_size, rows, cols], action_size)
     
     # agent.load_model()
 
